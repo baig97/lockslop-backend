@@ -5,14 +5,43 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx scripts/seed.ts",
+    "auth:register-extension": "tsx scripts/register-extension.ts",
+    "test:integration": "tsx scripts/test-integration.ts",
+    "test:ai": "tsx scripts/test-ai.ts",
+    "ai:clear": "tsx scripts/clear-ai.ts",
+    "test:jev": "tsx scripts/test-jev.ts",
+    "test:jev:live": "tsx scripts/test-jev-live.ts",
+    "eval:jev": "tsx scripts/evaluate-jev.ts",
+    "content:clear": "tsx scripts/clear-content.ts",
+    "test:youtube-comments": "tsx scripts/test-youtube-comments.ts",
+    "test:youtube-comments:live": "tsx scripts/test-youtube-comments-live.ts"
   },
   "dependencies": {
-    "next": "16.3.5"
+    "@better-auth/core": "1.7.4",
+    "@better-auth/drizzle-adapter": "1.7.4",
+    "@better-auth/oauth-provider": "1.7.4",
+    "@better-fetch/fetch": "1.3.1",
+    "better-auth": "1.7.4",
+    "drizzle-orm": "^0.45.2",
+    "franc": "6.2.0",
+    "next": "16.3.5",
+    "pg": "^8.23.0",
+    "zod": "^4.6.4"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
+    "prettier": "3.9.6",
+    "tsx": "^4.23.13",
     "typescript": "^5"
-  }
+  },
+  "type": "module"
 }

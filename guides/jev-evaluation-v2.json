@@ -1,0 +1,380 @@
+{
+  "formulation": "youtube-metadata-v2",
+  "model": "jev-1.13.0",
+  "date": "2026-10-05",
+  "baselineDeviations": 3,
+  "deviations": 3,
+  "fixtures": [
+    {
+      "fixture": "clean educational",
+      "formulation": "youtube-metadata-v2",
+      "model": "jev-1.13.0",
+      "baselineFormulation": "youtube-metadata-v1",
+      "baselineModel": "jev-1.13.0",
+      "signals": [
+        {
+          "key": "repetitive",
+          "score": 0
+        },
+        {
+          "key": "clickbait",
+          "score": 0.0025
+        },
+        {
+          "key": "low_information_density",
+          "score": 0.0025
+        },
+        {
+          "key": "ai_generated_filler",
+          "score": 0
+        },
+        {
+          "key": "copied_or_repackaged",
+          "score": 0
+        }
+      ],
+      "previous": {
+        "repetitive": 0,
+        "clickbait": 0.0025,
+        "low_information_density": 0.0025,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0
+      },
+      "delta": {
+        "repetitive": 0,
+        "clickbait": 0,
+        "low_information_density": 0,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0
+      },
+      "previousDeviations": [],
+      "expected": {
+        "repetitive": [0, 0.35],
+        "clickbait": [0, 0.35],
+        "low_information_density": [0, 0.35],
+        "ai_generated_filler": [0, 0.35],
+        "copied_or_repackaged": [0, 0.35]
+      },
+      "deviations": [],
+      "rationale": "Specific helpful detail; no supporting evidence for any signal."
+    },
+    {
+      "fixture": "promotional title",
+      "formulation": "youtube-metadata-v2",
+      "model": "jev-1.13.0",
+      "baselineFormulation": "youtube-metadata-v1",
+      "baselineModel": "jev-1.13.0",
+      "signals": [
+        {
+          "key": "repetitive",
+          "score": 0.77
+        },
+        {
+          "key": "clickbait",
+          "score": 0.9775
+        },
+        {
+          "key": "low_information_density",
+          "score": 0.9225
+        },
+        {
+          "key": "ai_generated_filler",
+          "score": 0.025
+        },
+        {
+          "key": "copied_or_repackaged",
+          "score": 0.0025
+        }
+      ],
+      "previous": {
+        "repetitive": 0.9525,
+        "clickbait": 0.9875,
+        "low_information_density": 0.905,
+        "ai_generated_filler": 0.0225,
+        "copied_or_repackaged": 0
+      },
+      "delta": {
+        "repetitive": -0.1825,
+        "clickbait": -0.01,
+        "low_information_density": 0.0175,
+        "ai_generated_filler": 0.0025,
+        "copied_or_repackaged": 0.0025
+      },
+      "previousDeviations": ["repetitive", "low_information_density"],
+      "expected": {
+        "repetitive": [0, 0.35],
+        "clickbait": [0.65, 1],
+        "low_information_density": [0, 0.35],
+        "ai_generated_filler": [0, 0.35],
+        "copied_or_repackaged": [0, 0.35]
+      },
+      "deviations": ["repetitive", "low_information_density"],
+      "rationale": "Repeated absolute manipulative medical promises support clickbait; this is not a factuality assessment."
+    },
+    {
+      "fixture": "repetitive filler",
+      "formulation": "youtube-metadata-v2",
+      "model": "jev-1.13.0",
+      "baselineFormulation": "youtube-metadata-v1",
+      "baselineModel": "jev-1.13.0",
+      "signals": [
+        {
+          "key": "repetitive",
+          "score": 0.9425
+        },
+        {
+          "key": "clickbait",
+          "score": 0.53
+        },
+        {
+          "key": "low_information_density",
+          "score": 0.895
+        },
+        {
+          "key": "ai_generated_filler",
+          "score": 0.095
+        },
+        {
+          "key": "copied_or_repackaged",
+          "score": 0.005
+        }
+      ],
+      "previous": {
+        "repetitive": 0.985,
+        "clickbait": 0.415,
+        "low_information_density": 0.92,
+        "ai_generated_filler": 0.12,
+        "copied_or_repackaged": 0.0025
+      },
+      "delta": {
+        "repetitive": -0.0425,
+        "clickbait": 0.115,
+        "low_information_density": -0.025,
+        "ai_generated_filler": -0.025,
+        "copied_or_repackaged": 0.0025
+      },
+      "previousDeviations": ["clickbait"],
+      "expected": {
+        "repetitive": [0.65, 1],
+        "clickbait": [0, 0.35],
+        "low_information_density": [0.55, 1],
+        "ai_generated_filler": [0, 0.35],
+        "copied_or_repackaged": [0, 0.35]
+      },
+      "deviations": ["clickbait"],
+      "rationale": "Substantive promotional repetition with no detail; AI use and unseen video repetition remain unknown."
+    },
+    {
+      "fixture": "legitimate credited commentary",
+      "formulation": "youtube-metadata-v2",
+      "model": "jev-1.13.0",
+      "baselineFormulation": "youtube-metadata-v1",
+      "baselineModel": "jev-1.13.0",
+      "signals": [
+        {
+          "key": "repetitive",
+          "score": 0
+        },
+        {
+          "key": "clickbait",
+          "score": 0.01
+        },
+        {
+          "key": "low_information_density",
+          "score": 0.005
+        },
+        {
+          "key": "ai_generated_filler",
+          "score": 0
+        },
+        {
+          "key": "copied_or_repackaged",
+          "score": 0.04
+        }
+      ],
+      "previous": {
+        "repetitive": 0.0025,
+        "clickbait": 0.035,
+        "low_information_density": 0.01,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0.015
+      },
+      "delta": {
+        "repetitive": -0.0025,
+        "clickbait": -0.025,
+        "low_information_density": -0.005,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0.025
+      },
+      "previousDeviations": [],
+      "expected": {
+        "repetitive": [0, 0.35],
+        "clickbait": [0, 0.35],
+        "low_information_density": [0, 0.35],
+        "ai_generated_filler": [0, 0.35],
+        "copied_or_repackaged": [0, 0.35]
+      },
+      "deviations": [],
+      "rationale": "Credits and licensed clips plus substantive commentary are not problematic copying."
+    },
+    {
+      "fixture": "AI-assisted quality",
+      "formulation": "youtube-metadata-v2",
+      "model": "jev-1.13.0",
+      "baselineFormulation": "youtube-metadata-v1",
+      "baselineModel": "jev-1.13.0",
+      "signals": [
+        {
+          "key": "repetitive",
+          "score": 0.0025
+        },
+        {
+          "key": "clickbait",
+          "score": 0
+        },
+        {
+          "key": "low_information_density",
+          "score": 0.0025
+        },
+        {
+          "key": "ai_generated_filler",
+          "score": 0.0125
+        },
+        {
+          "key": "copied_or_repackaged",
+          "score": 0.0025
+        }
+      ],
+      "previous": {
+        "repetitive": 0.0025,
+        "clickbait": 0,
+        "low_information_density": 0.0025,
+        "ai_generated_filler": 0.0025,
+        "copied_or_repackaged": 0
+      },
+      "delta": {
+        "repetitive": 0,
+        "clickbait": 0,
+        "low_information_density": 0,
+        "ai_generated_filler": 0.01,
+        "copied_or_repackaged": 0.0025
+      },
+      "previousDeviations": [],
+      "expected": {
+        "repetitive": [0, 0.35],
+        "clickbait": [0, 0.35],
+        "low_information_density": [0, 0.35],
+        "ai_generated_filler": [0, 0.35],
+        "copied_or_repackaged": [0, 0.35]
+      },
+      "deviations": [],
+      "rationale": "Explicit AI disclosure accompanied by useful reviewed substance does not establish filler."
+    },
+    {
+      "fixture": "sparse metadata",
+      "formulation": "youtube-metadata-v2",
+      "model": "jev-1.13.0",
+      "baselineFormulation": "youtube-metadata-v1",
+      "baselineModel": "jev-1.13.0",
+      "signals": [
+        {
+          "key": "repetitive",
+          "score": 0
+        },
+        {
+          "key": "clickbait",
+          "score": 0
+        },
+        {
+          "key": "low_information_density",
+          "score": 0.02
+        },
+        {
+          "key": "ai_generated_filler",
+          "score": 0
+        },
+        {
+          "key": "copied_or_repackaged",
+          "score": 0
+        }
+      ],
+      "previous": {
+        "repetitive": 0,
+        "clickbait": 0,
+        "low_information_density": 0.01,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0
+      },
+      "delta": {
+        "repetitive": 0,
+        "clickbait": 0,
+        "low_information_density": 0.01,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0
+      },
+      "previousDeviations": [],
+      "expected": {
+        "repetitive": [0, 0.35],
+        "clickbait": [0, 0.35],
+        "low_information_density": [0, 0.35],
+        "ai_generated_filler": [0, 0.35],
+        "copied_or_repackaged": [0, 0.35]
+      },
+      "deviations": [],
+      "rationale": "Unavailable information is no supporting evidence; do not fill gaps with assumptions."
+    },
+    {
+      "fixture": "non-English explanation",
+      "formulation": "youtube-metadata-v2",
+      "model": "jev-1.13.0",
+      "baselineFormulation": "youtube-metadata-v1",
+      "baselineModel": "jev-1.13.0",
+      "signals": [
+        {
+          "key": "repetitive",
+          "score": 0.0025
+        },
+        {
+          "key": "clickbait",
+          "score": 0.0025
+        },
+        {
+          "key": "low_information_density",
+          "score": 0.005
+        },
+        {
+          "key": "ai_generated_filler",
+          "score": 0
+        },
+        {
+          "key": "copied_or_repackaged",
+          "score": 0
+        }
+      ],
+      "previous": {
+        "repetitive": 0.005,
+        "clickbait": 0.0025,
+        "low_information_density": 0.015,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0
+      },
+      "delta": {
+        "repetitive": -0.0025,
+        "clickbait": 0,
+        "low_information_density": -0.01,
+        "ai_generated_filler": 0,
+        "copied_or_repackaged": 0
+      },
+      "previousDeviations": [],
+      "expected": {
+        "repetitive": [0, 0.35],
+        "clickbait": [0, 0.35],
+        "low_information_density": [0, 0.35],
+        "ai_generated_filler": [0, 0.35],
+        "copied_or_repackaged": [0, 0.35]
+      },
+      "deviations": [],
+      "rationale": "Specific explanation in Urdu; unfamiliar language must not become AI or quality evidence."
+    }
+  ]
+}

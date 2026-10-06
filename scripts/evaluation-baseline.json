@@ -1,0 +1,56 @@
+{
+  "formulation": "youtube-metadata-v1",
+  "model": "jev-1.13.0",
+  "date": "2026-10-05",
+  "fixtures": {
+    "clean educational": {
+      "repetitive": 0,
+      "clickbait": 0.0025,
+      "low_information_density": 0.0025,
+      "ai_generated_filler": 0,
+      "copied_or_repackaged": 0
+    },
+    "promotional title": {
+      "repetitive": 0.9525,
+      "clickbait": 0.9875,
+      "low_information_density": 0.905,
+      "ai_generated_filler": 0.0225,
+      "copied_or_repackaged": 0
+    },
+    "repetitive filler": {
+      "repetitive": 0.985,
+      "clickbait": 0.415,
+      "low_information_density": 0.92,
+      "ai_generated_filler": 0.12,
+      "copied_or_repackaged": 0.0025
+    },
+    "legitimate credited commentary": {
+      "repetitive": 0.0025,
+      "clickbait": 0.035,
+      "low_information_density": 0.01,
+      "ai_generated_filler": 0,
+      "copied_or_repackaged": 0.015
+    },
+    "AI-assisted quality": {
+      "repetitive": 0.0025,
+      "clickbait": 0,
+      "low_information_density": 0.0025,
+      "ai_generated_filler": 0.0025,
+      "copied_or_repackaged": 0
+    },
+    "sparse metadata": {
+      "repetitive": 0,
+      "clickbait": 0,
+      "low_information_density": 0.01,
+      "ai_generated_filler": 0,
+      "copied_or_repackaged": 0
+    },
+    "non-English explanation": {
+      "repetitive": 0.005,
+      "clickbait": 0.0025,
+      "low_information_density": 0.015,
+      "ai_generated_filler": 0,
+      "copied_or_repackaged": 0
+    }
+  }
+}
