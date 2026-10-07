@@ -57,6 +57,7 @@ export function retryDelay(header: string | null, now: number): number {
 }
 
 type RunnerOptions = {
+  version?: string;
   apiKey?: string;
   model?: string;
   fetch?: typeof fetch;
@@ -77,7 +78,7 @@ export async function runJev<Key extends string>(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const metadata = () => ({
     model,
-    version: GENERATOR_VERSION,
+    version: options.version ?? GENERATOR_VERSION,
     durationMs: Date.now() - started,
   });
   try {

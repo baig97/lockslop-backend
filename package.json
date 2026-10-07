@@ -18,8 +18,8 @@
     "test:jev:live": "tsx scripts/test-jev-live.ts",
     "eval:jev": "tsx scripts/evaluate-jev.ts",
     "content:clear": "tsx scripts/clear-content.ts",
-    "test:youtube-comments": "tsx scripts/test-youtube-comments.ts",
-    "test:youtube-comments:live": "tsx scripts/test-youtube-comments-live.ts"
+    "test:unit": "tsx scripts/test-content.ts && tsx scripts/test-analysis-unit.ts && tsx scripts/test-jev.ts",
+    "content:prune": "tsx scripts/prune-analyses.ts"
   },
   "dependencies": {
     "@better-auth/core": "1.7.4",

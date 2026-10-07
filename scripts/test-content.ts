@@ -1,0 +1,131 @@
+import assert from "node:assert/strict";
+import {
+  identitySchema,
+  envelopeSchema,
+  sanitizeContent,
+  hashContent,
+  sortedJson,
+} from "../lib/contracts/content";
+import { normalizeIdentity } from "../lib/identity";
+import { checkContentLanguage } from "../lib/ai/language";
+import { fixtureContent, evaluationFixtures } from "./evaluation-fixtures";
+const sample = fixtureContent(evaluationFixtures[0]);
+const content = sanitizeContent("youtube_video", sample);
+const hash = hashContent("youtube_video", content);
+assert.match(hash, /^sha256:[a-f0-9]{64}$/);
+assert.equal(
+  sortedJson({ z: 1, a: { y: 2, x: 3 } }),
+  '{"a":{"x":3,"y":2},"z":1}',
+);
+const modified = structuredClone(sample);
+modified.counts.comments = 123 as any;
+modified.comments = {
+  status: "available",
+  items: [
+    {
+      text: "Useful explanation",
+      username: "private",
+      profileUrl: "https://private.test",
+      avatar: "private",
+      tracking: "private",
+    },
+  ],
+} as any;
+const clean = sanitizeContent("youtube_video", modified);
+assert.deepEqual(clean.comments.items, [{ text: "Useful explanation" }]);
+assert(!JSON.stringify(clean).includes("private"));
+assert.equal(hashContent("youtube_video", clean), hash);
+modified.description += "Changed";
+assert.notEqual(
+  hashContent("youtube_video", sanitizeContent("youtube_video", modified)),
+  hash,
+);
+assert.throws(() => hashContent("linkedin_post", content));
+assert.throws(() => sanitizeContent("linkedin_post", sample));
+assert.throws(() =>
+  sanitizeContent("youtube_video", {
+    ...sample,
+    description: "a".repeat(40000),
+  }),
+);
+assert.throws(() =>
+  identitySchema.parse({
+    entityType: "youtube_video",
+    url: "https://youtube.com/watch?v=abcdefghijk",
+    externalId: "abcdefghijk",
+  }),
+);
+assert.throws(() =>
+  identitySchema.parse({ entityType: "linkedin_post", externalId: " " }),
+);
+assert.throws(() => identitySchema.parse({ entityType: "youtube_video" }));
+assert.equal(
+  normalizeIdentity({ entityType: "youtube_video", externalId: "abcdefghijk" })
+    .url,
+  "https://www.youtube.com/watch?v=abcdefghijk",
+);
+assert.equal(
+  normalizeIdentity({
+    entityType: "youtube_video",
+    url: "http://youtu.be/abcdefghijk?t=5",
+  }).url,
+  "https://www.youtube.com/watch?v=abcdefghijk",
+);
+assert.equal(
+  normalizeIdentity({
+    entityType: "linkedin_post",
+    url: "http://linkedin.com/posts/test-ugcPost-123-abc?tracking=x#x",
+  }).url,
+  "https://www.linkedin.com/posts/test-ugcPost-123-abc/",
+);
+assert.throws(() =>
+  normalizeIdentity({
+    entityType: "linkedin_post",
+    url: "https://www.linkedin.com/feed/",
+  }),
+);
+assert.throws(() =>
+  normalizeIdentity({
+    entityType: "youtube_video",
+    url: "https://evil.test/watch?v=abcdefghijk",
+  }),
+);
+assert.equal(checkContentLanguage(content), null);
+assert.equal(
+  checkContentLanguage(
+    sanitizeContent("youtube_video", fixtureContent(evaluationFixtures[6])),
+  )?.status,
+  "unsupported_language",
+);
+assert.equal(
+  envelopeSchema.parse({ entities: new Array(10).fill({}) }).entities.length,
+  10,
+);
+assert.throws(() => envelopeSchema.parse({ entities: new Array(11).fill({}) }));
+assert.throws(() =>
+  sanitizeContent("youtube_video", {
+    ...sample,
+    description: "界".repeat(12000),
+  }),
+);
+assert.throws(() =>
+  sanitizeContent("youtube_video", {
+    ...sample,
+    observedAt: "2026-10-07T00:00:00Z",
+  }),
+);
+const post = sanitizeContent("linkedin_post", {
+  schemaVersion: 2,
+  text: sample.description,
+});
+assert.throws(() =>
+  sanitizeContent("linkedin_post", { ...post, durationSeconds: 1 }),
+);
+assert.throws(() =>
+  sanitizeContent("youtube_video", { ...sample, text: "post" }),
+);
+assert.match(hashContent("linkedin_post", post), /^sha256:[a-f0-9]{64}$/);
+assert.throws(() => envelopeSchema.parse({ entities: [] }));
+console.log(
+  "PASS: identity XOR, canonical URLs, core-only deterministic hashes, UTF-8 size bounds, schema sanitation, PII field removal, platform restrictions and language gating.",
+);

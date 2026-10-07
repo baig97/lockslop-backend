@@ -1,19 +1,15 @@
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 const { pool } = await import("../lib/db");
-const keys = [
-  "repetitive",
-  "clickbait",
-  "low_information_density",
-  "ai_generated_filler",
-  "copied_or_repackaged",
-];
+const { signalKeys: keys } = await import("../lib/contracts/signals");
 try {
   await pool.query(
     "INSERT INTO slop_signals(key) SELECT unnest($1::text[]) ON CONFLICT(key) DO NOTHING",
     [keys],
   );
-  console.log("Five stable signals seeded.");
+  console.log(
+    `${keys.length} canonical signals seeded without changing existing IDs.`,
+  );
 } finally {
   await pool.end();
 }

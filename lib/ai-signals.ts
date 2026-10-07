@@ -1,257 +1,355 @@
-import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
-import { z } from "zod";
+import {
+  signalsFor,
+  completeSignalSet,
+  type SignalEntityType,
+  youtubeSignalKeys,
+  linkedinSignalKeys,
+} from "./contracts/signals";
+import { Pool, type PoolClient } from "pg";
 import { pool } from "./db";
+import { aiResultSchema, type AiResult } from "./contracts/overview";
 import {
-  aiSignalKeys,
-  aiResultSchema,
-  type AiResult,
-} from "./contracts/overview";
-import {
-  mapYouTubePayload,
-  validateYouTubeComments,
-} from "./ai/youtube-video.mapper";
+  sanitizeContent,
+  hashContent,
+  type DerivedContent,
+  type ContentIdentity,
+} from "./contracts/content";
+import { checkContentLanguage } from "./ai/language";
 import {
   buildYouTubeContext,
   youtubeSignalQuestions,
 } from "./ai/youtube-video.context";
+import {
+  buildLinkedInContext,
+  linkedinSignalQuestions,
+} from "./ai/linkedin-post.context";
 import { runJev } from "./ai/jev-runner";
-import { GENERATOR_VERSION } from "./ai/config";
-import { checkMetadataLanguage } from "./ai/language";
-export const AI_CACHE_TTL = "1 month";
+import { generatorVersion } from "./ai/config";
+import { rateLimit } from "./http";
 export { GENERATOR_VERSION } from "./ai/config";
-export { mapYouTubePayload } from "./ai/youtube-video.mapper";
-// Session advisory locks require a direct connection, not Neon's transaction pooler.
+export const AI_CACHE_TTL = "1 month";
 export const generationPool = new Pool({
   connectionString: process.env.DATABASE_URL_UNPOOLED,
-  max: 3,
+  max: 2,
   connectionTimeoutMillis: 3000,
 });
 generationPool.on("error", () =>
   console.error("AI generation database connection closed."),
 );
-export async function fetchYouTubePayload(videoId: string): Promise<unknown> {
-  if (!process.env.YOUTUBE_DATA_API_KEY)
-    throw Error("YouTube data is not configured");
-  const query = new URLSearchParams({
-    id: videoId,
-    part: "snippet,contentDetails",
-    key: process.env.YOUTUBE_DATA_API_KEY,
-  });
-  const response = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?${query}`,
-    { signal: AbortSignal.timeout(5000), cache: "no-store" },
+export type Analysis = {
+  id: string;
+  entityId: string;
+  contentHash: string;
+  userId: string | null;
+  input: DerivedContent;
+  status: string;
+  generatorVersion: string;
+  detectedLanguage: string | null;
+  generatedAt: Date | null;
+  expiresAt: Date;
+  updatedAt: Date;
+  signals: { key: string; score: number }[];
+};
+export interface AnalysisLease {
+  load(): Promise<Analysis | null>;
+  claim(input: DerivedContent, userId: string): Promise<Analysis>;
+  fail(): Promise<void>;
+  save(
+    result: Exclude<
+      AiResult,
+      { status: "needs_input" } | { status: "unavailable" }
+    >,
+  ): Promise<void>;
+  release(): Promise<void>;
+}
+export interface AnalysisStore {
+  load(entityId: string, hash: string): Promise<Analysis | null>;
+  lock(entityId: string, hash: string): Promise<AnalysisLease | null>;
+}
+async function load(
+  client: { query: PoolClient["query"] },
+  entityId: string,
+  hash: string,
+): Promise<Analysis | null> {
+  const { rows } = await client.query(
+    `SELECT a.*,COALESCE((SELECT json_agg(json_build_object('key',s.signal_key,'score',s.score) ORDER BY s.signal_key) FROM ai_content_signals s WHERE s.analysis_id=a.id),'[]') AS signals FROM content_analyses a WHERE entity_id=$1 AND content_hash=$2`,
+    [entityId, hash],
   );
-  if (!response.ok) throw Error("YouTube data is unavailable");
-  const envelope = z
-    .object({ items: z.array(z.unknown()).min(1) })
-    .parse(await response.json());
-  const resource = envelope.items[0];
-  // Validate identity without stripping any provider fields from the raw resource.
-  mapYouTubePayload(resource, videoId);
-  // Enrich this canonical video only; no list envelope or unrelated resources.
-  const commentThreads = await fetchYouTubeComments(videoId);
-  const enriched = { ...(resource as Record<string, unknown>), commentThreads };
-  mapYouTubePayload(enriched, videoId);
-  return enriched;
+  if (!rows[0]) return null;
+  const a = rows[0];
+  return {
+    id: a.id,
+    entityId: a.entity_id,
+    contentHash: a.content_hash,
+    userId: a.user_id,
+    input: a.input,
+    status: a.status,
+    generatorVersion: a.generator_version,
+    detectedLanguage: a.detected_language,
+    generatedAt: a.generated_at,
+    expiresAt: a.expires_at,
+    updatedAt: a.updated_at,
+    signals: a.signals,
+  };
 }
-export async function fetchYouTubeComments(videoId: string) {
-  const missing = (status: "disabled" | "unavailable") => ({
-    status,
-    order: "relevance" as const,
-    items: [],
+export function cachedResult(
+  a: Analysis | null,
+  now = Date.now(),
+  type: SignalEntityType = a?.input && Object.prototype.hasOwnProperty.call(a.input, "title")
+    ? "youtube_video"
+    : "linkedin_post",
+): AiResult {
+  if (!a || a.expiresAt.getTime() <= now) return { status: "needs_input" };
+  if (a.generatorVersion !== generatorVersion(type))
+    return { status: "needs_input" };
+  if (a.status === "unsupported_language")
+    return aiResultSchema.parse({
+      status: a.status,
+      detectedLanguage: a.detectedLanguage,
+    });
+  if (a.status !== "ready") return { status: "unavailable", retryable: true };
+  if (!completeSignalSet(type, a.signals)) return { status: "needs_input" };
+  const parsed = aiResultSchema.safeParse({
+    status: "ready",
+    signals: signalsFor(type).map((key) =>
+      a.signals.find((signal) => signal.key === key)!,
+    ),
+    generatedAt: a.generatedAt?.toISOString(),
   });
-  const query = new URLSearchParams({
-    videoId,
-    part: "snippet",
-    maxResults: "10",
-    order: "relevance",
-    textFormat: "plainText",
-    key: process.env.YOUTUBE_DATA_API_KEY ?? "",
-  });
-  try {
-    const response = await fetch(
-      `https://www.googleapis.com/youtube/v3/commentThreads?${query}`,
-      {
-        signal: AbortSignal.timeout(5000),
-        cache: "no-store",
-      },
-    );
-    if (!response.ok) {
-      const error = await response.json().catch(() => null);
-      return missing(
-        response.status === 403 &&
-          error?.error?.errors?.some(
-            (item: { reason?: string }) => item.reason === "commentsDisabled",
+  return parsed.success ? parsed.data : { status: "needs_input" };
+}
+export const postgresAnalysisStore: AnalysisStore = {
+  load: (id, hash) => load(pool, id, hash),
+  async lock(entityId, hash) {
+    if (!process.env.DATABASE_URL_UNPOOLED) return null;
+    const c = await generationPool.connect(),
+      key = `ai:${entityId}:${hash}`;
+    let locked = false;
+    try {
+      const deadline = Date.now() + 7000;
+      do {
+        locked = (
+          await c.query(
+            "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked",
+            [key],
           )
-          ? "disabled"
-          : "unavailable",
-      );
+        ).rows[0].locked;
+        if (locked) break;
+        await new Promise((r) => setTimeout(r, 100));
+      } while (Date.now() < deadline);
+      if (!locked) {
+        c.release();
+        return null;
+      }
+    } catch (error) {
+      c.release(true);
+      throw error;
     }
-    const envelope = z
-      .object({ items: z.array(z.unknown()).max(10) })
-      .parse(await response.json());
-    // Validate each thread's identity and model-relevant fields before storing it.
-    // A malformed supplemental response should not discard a valid video resource.
-    const sample = {
-      status: "ready" as const,
-      order: "relevance" as const,
-      items: envelope.items,
+    let analysis: Analysis | null = null;
+    return {
+      async load() {
+        return load(c, entityId, hash);
+      },
+      async claim(input, userId) {
+        await c.query("BEGIN");
+        try {
+          await c.query(
+            "DELETE FROM content_analyses WHERE entity_id=$1 AND content_hash=$2 AND expires_at<=now()",
+            [entityId, hash],
+          );
+          await c.query(
+            `INSERT INTO content_analyses(entity_id,content_hash,user_id,input,status,generator_version,expires_at) VALUES($1,$2,$3,$4,'pending',$5,now()+interval '1 month') ON CONFLICT(entity_id,content_hash) DO NOTHING`,
+            [
+              entityId,
+              hash,
+              userId,
+              JSON.stringify(input),
+              generatorVersion(
+                "title" in input ? "youtube_video" : "linkedin_post",
+              ),
+            ],
+          );
+          analysis = (await load(c, entityId, hash))!;
+          await c.query(
+            "UPDATE content_analyses SET status='pending',updated_at=now() WHERE id=$1",
+            [analysis.id],
+          );
+          await c.query("COMMIT");
+          return analysis;
+        } catch (e) {
+          await c.query("ROLLBACK");
+          throw e;
+        }
+      },
+      async fail() {
+        if (analysis)
+          await c.query(
+            "UPDATE content_analyses SET status='failed',updated_at=now() WHERE id=$1",
+            [analysis.id],
+          );
+      },
+      async save(result) {
+        if (!analysis) throw Error("Missing analysis claim");
+        await c.query("BEGIN");
+        try {
+          await c.query("DELETE FROM ai_content_signals WHERE analysis_id=$1", [
+            analysis.id,
+          ]);
+          if (result.status === "ready")
+            for (const signal of result.signals)
+              await c.query(
+                "INSERT INTO ai_content_signals(analysis_id,signal_key,score) VALUES($1,$2,$3)",
+                [analysis.id, signal.key, signal.score],
+              );
+          await c.query(
+            "UPDATE content_analyses SET status=$2,detected_language=$3,generated_at=$4,generator_version=$5,expires_at=now()+interval '1 month',updated_at=now() WHERE id=$1",
+            [
+              analysis.id,
+              result.status,
+              result.status === "unsupported_language"
+                ? result.detectedLanguage
+                : null,
+              result.status === "ready"
+                ? result.generatedAt
+                : new Date().toISOString(),
+              generatorVersion(
+                "title" in analysis.input ? "youtube_video" : "linkedin_post",
+              ),
+            ],
+          );
+          await c.query("COMMIT");
+        } catch (e) {
+          await c.query("ROLLBACK");
+          throw e;
+        }
+      },
+      async release() {
+        try {
+          await c.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [
+            key,
+          ]);
+          c.release();
+        } catch {
+          c.release(true);
+          throw Error("Generation lock release failed");
+        }
+      },
     };
-    validateYouTubeComments(sample, videoId);
-    return sample;
-  } catch {
-    return missing("unavailable");
-  }
-}
+  },
+};
 export async function deriveAiSignals(
-  input: ReturnType<typeof mapYouTubePayload>,
+  type: "youtube_video",
+  input: DerivedContent,
+): Promise<{ key: (typeof youtubeSignalKeys)[number]; score: number }[]>;
+export async function deriveAiSignals(
+  type: "linkedin_post",
+  input: DerivedContent,
+): Promise<{ key: (typeof linkedinSignalKeys)[number]; score: number }[]>;
+export async function deriveAiSignals(
+  type: SignalEntityType,
+  input: DerivedContent,
+): Promise<{ key: (typeof linkedinSignalKeys)[number]; score: number }[]>;
+export async function deriveAiSignals(
+  type: ContentIdentity["entityType"],
+  input: DerivedContent,
 ) {
-  return runJev(buildYouTubeContext(input), youtubeSignalQuestions);
+  const signals = await (type === "youtube_video"
+    ? runJev(buildYouTubeContext(input), youtubeSignalQuestions, {
+        version: generatorVersion(type),
+      })
+    : runJev(
+        buildLinkedInContext(sanitizeContent("linkedin_post", input)),
+        linkedinSignalQuestions,
+        { version: generatorVersion(type) },
+      ));
+  const result = aiResultSchema.parse({
+    status: "ready",
+    signals,
+    generatedAt: new Date().toISOString(),
+  });
+  if (result.status !== "ready") throw Error("Invalid scores");
+  return result.signals;
 }
-const cooldown = new Map<string, number>();
+export async function lookupAiSignals(
+  entityId: string,
+  hash: string,
+  store: AnalysisStore = postgresAnalysisStore,
+  type?: SignalEntityType,
+) {
+  return cachedResult(await store.load(entityId, hash), Date.now(), type);
+}
 export async function ensureAiSignals(
   entityId: string,
-  videoId: string,
-  deps = { fetchPayload: fetchYouTubePayload, derive: deriveAiSignals },
+  type: ContentIdentity["entityType"],
+  hash: string,
+  raw: unknown,
+  userId: string,
+  deps: {
+    store: AnalysisStore;
+    derive: (
+      type: SignalEntityType,
+      input: DerivedContent,
+    ) => Promise<{ key: string; score: number }[]>;
+    limit: (user: string) => Promise<void>;
+  } = {
+    store: postgresAnalysisStore,
+    derive: deriveAiSignals,
+    limit: async (user: string) => {
+      await rateLimit(`ai:user:${user}`, 30);
+      await rateLimit("ai:global", 120);
+    },
+  },
 ): Promise<AiResult> {
-  const unavailable = { status: "unavailable", retryable: true } as const;
-  async function cached() {
-    const { rows } = await pool.query(
-      `SELECT p.provider,p.payload,s.signal_key as key,s.score,s.updated_at
-       FROM content_payloads p LEFT JOIN ai_content_signals s
-         ON s.entity_id=p.entity_id AND p.revision=s.payload_revision
-         AND s.updated_at >= now()-$2::interval
-       WHERE p.entity_id=$1 AND p.status='ready' ORDER BY s.signal_key`,
-      [entityId, AI_CACHE_TTL],
-    );
-    if (rows.length) {
-      if (rows[0].provider !== "youtube_data_api_v3")
-        throw Error("Unsupported payload provider");
-      const language = checkMetadataLanguage(
-        mapYouTubePayload(rows[0].payload, videoId),
-      );
-      if (language) return language;
-    }
-    if (
-      rows.length !== aiSignalKeys.length ||
-      !aiSignalKeys.every((key) => rows.some((r) => r.key === key))
-    )
-      return null;
-    return aiResultSchema.parse({
-      status: "ready",
-      signals: rows.map(({ key, score }) => ({ key, score })),
-      generatedAt: rows[0].updated_at.toISOString(),
-    });
-  }
-  const saved = await cached();
-  if (saved) return saved;
-  if ((cooldown.get(entityId) ?? 0) > Date.now()) return unavailable;
-  if (!process.env.DATABASE_URL_UNPOOLED) return unavailable;
-  const c = await generationPool.connect();
-  let locked = false;
+  const input = sanitizeContent(type, raw);
+  if (hashContent(type, input) !== hash) throw Error("Content hash mismatch");
+  const cached = cachedResult(
+    await deps.store.load(entityId, hash),
+    Date.now(),
+    type,
+  );
+  if (cached.status === "ready" || cached.status === "unsupported_language")
+    return cached;
+  let lease: AnalysisLease | null = null;
+  let claimed = false;
   try {
-    const deadline = Date.now() + 7000;
-    do {
-      locked = (
-        await c.query(
-          "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked",
-          [`ai:${entityId}`],
-        )
-      ).rows[0].locked;
-      if (locked) break;
-      const result = await cached();
-      if (result) return result;
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    } while (Date.now() < deadline);
-    if (!locked) return unavailable;
-    const existing = await cached();
-    if (existing) return existing;
-    let payload = (
-      await c.query("SELECT * FROM content_payloads WHERE entity_id=$1", [
-        entityId,
-      ])
-    ).rows[0];
-    if (!payload || payload.status === "stale") {
-      const raw = await deps.fetchPayload(videoId);
-      mapYouTubePayload(raw, videoId);
-      payload = (
-        await c.query(
-          `INSERT INTO content_payloads(entity_id,provider,payload,revision) VALUES($1,'youtube_data_api_v3',$2,$3) ON CONFLICT(entity_id) DO UPDATE SET provider=EXCLUDED.provider,payload=EXCLUDED.payload,revision=EXCLUDED.revision,status='ready',updated_at=now() RETURNING *`,
-          [entityId, JSON.stringify(raw), randomUUID()],
-        )
-      ).rows[0];
+    lease = await deps.store.lock(entityId, hash);
+    if (!lease) return { status: "unavailable", retryable: true };
+    const existing = await lease.load(),
+      saved = cachedResult(existing, Date.now(), type);
+    if (saved.status === "ready" || saved.status === "unsupported_language")
+      return saved;
+    if (
+      existing?.status === "failed" &&
+      existing.expiresAt.getTime() > Date.now() &&
+      existing.updatedAt.getTime() > Date.now() - 10000
+    )
+      return { status: "unavailable", retryable: true };
+    await deps.limit(userId);
+    const a = await lease.claim(input, userId);
+    claimed = true;
+    const accepted = sanitizeContent(type, a.input);
+    if (hashContent(type, accepted) !== hash)
+      throw Error("Stored hash mismatch");
+    const language = checkContentLanguage(accepted);
+    if (language) {
+      await lease.save(language);
+      return language;
     }
-    if (payload.provider !== "youtube_data_api_v3")
-      throw Error("Unsupported payload provider");
-    const input = mapYouTubePayload(payload.payload, videoId);
-    const language = checkMetadataLanguage(input);
-    if (language) return language;
-    const signals = (await deps.derive(input)).sort((a, b) =>
-      a.key.localeCompare(b.key),
-    );
+    const signals = await deps.derive(type, accepted);
+    if (!completeSignalSet(type, signals)) throw Error("Incomplete signal set");
     const result = aiResultSchema.parse({
       status: "ready",
       signals,
       generatedAt: new Date().toISOString(),
     });
-    if (
-      signals.length !== aiSignalKeys.length ||
-      !aiSignalKeys.every(
-        (key) => signals.filter((s) => s.key === key).length === 1,
-      )
-    )
-      throw Error("Incomplete AI signal set");
-    await c.query("BEGIN");
-    try {
-      // Coordinate with a future stale-marking job; never publish a mismatched revision.
-      const current = (
-        await c.query(
-          "SELECT revision,status FROM content_payloads WHERE entity_id=$1 FOR UPDATE",
-          [entityId],
-        )
-      ).rows[0];
-      if (current.revision !== payload.revision || current.status !== "ready")
-        throw Error("Payload changed during generation");
-      await c.query(
-        "DELETE FROM ai_content_signals WHERE entity_id=$1 AND NOT (signal_key=ANY($2::text[]))",
-        [entityId, aiSignalKeys],
-      );
-      for (const s of signals)
-        await c.query(
-          `INSERT INTO ai_content_signals(entity_id,signal_key,score,payload_revision,generator_version,updated_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(entity_id,signal_key) DO UPDATE SET score=EXCLUDED.score,payload_revision=EXCLUDED.payload_revision,generator_version=EXCLUDED.generator_version,updated_at=EXCLUDED.updated_at`,
-          [
-            entityId,
-            s.key,
-            s.score,
-            payload.revision,
-            GENERATOR_VERSION,
-            result.status === "ready" ? result.generatedAt : null,
-          ],
-        );
-      await c.query("COMMIT");
-    } catch (e) {
-      await c.query("ROLLBACK");
-      throw e;
-    }
-    cooldown.delete(entityId);
+    if (result.status !== "ready") throw Error("Invalid result");
+    await lease.save(result);
     return result;
-  } catch {
-    // Short process-local backoff; quota limiting also applies across instances at the route.
-    if (cooldown.size > 1000) cooldown.clear();
-    cooldown.set(entityId, Date.now() + 10000);
-    return unavailable;
+  } catch (error) {
+    if (claimed) await lease?.fail().catch(() => {});
+    if ((error as { status?: number }).status === 429) throw error;
+    return { status: "unavailable", retryable: true };
   } finally {
-    if (locked) {
-      try {
-        await c.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [
-          `ai:${entityId}`,
-        ]);
-      } catch {
-        c.release(true);
-        throw Error("Could not release generation lock");
-      }
-    }
-    c.release();
+    await lease?.release();
   }
 }

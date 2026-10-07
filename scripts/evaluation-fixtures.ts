@@ -86,19 +86,17 @@ export const evaluationFixtures: EvaluationFixture[] = [
       "Specific explanation in Urdu; unfamiliar language must not become AI or quality evidence.",
   },
 ];
-export function fixtureResource(
-  fixture: EvaluationFixture,
-  id = "abcdefghijk",
-) {
+export function fixtureContent(fixture: (typeof evaluationFixtures)[number]) {
   return {
-    id,
-    snippet: {
-      title: fixture.title,
-      description: fixture.description,
-      publishedAt: "2026-01-01T00:00:00Z",
-      defaultLanguage: fixture.language ?? "en",
-      liveBroadcastContent: "none",
-    },
-    contentDetails: { duration: "PT4M" },
+    schemaVersion: 2 as const,
+    title: fixture.title,
+    description: fixture.description,
+    publishedAt: "2026-01-01T00:00:00Z",
+    durationSeconds: 240,
+    languageHint: null,
+    liveBroadcastContent: null,
+    tags: [],
+    counts: { comments: null, views: null, likes: null },
+    comments: { status: "unavailable" as const, items: [] },
   };
 }

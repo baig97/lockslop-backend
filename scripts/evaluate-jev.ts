@@ -3,10 +3,10 @@ import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 const { deriveAiSignals, generationPool } = await import("../lib/ai-signals");
 const { pool } = await import("../lib/db");
-const { mapYouTubePayload } = await import("../lib/ai/youtube-video.mapper");
-const { evaluationFixtures, fixtureResource } =
+
+const { evaluationFixtures, fixtureContent } =
   await import("./evaluation-fixtures");
-const { checkMetadataLanguage } = await import("../lib/ai/language");
+const { checkContentLanguage } = await import("../lib/ai/language");
 const { FORMULATION_VERSION, JEV_MODEL } = await import("../lib/ai/config");
 const baseline = JSON.parse(
   await readFile(
@@ -26,8 +26,8 @@ try {
   if (!process.env.TYPESAFE_API_KEY)
     throw Error("Set TYPESAFE_API_KEY before running live evaluation");
   for (const fixture of evaluationFixtures) {
-    const input = mapYouTubePayload(fixtureResource(fixture), "abcdefghijk");
-    const language = checkMetadataLanguage(input);
+    const input = fixtureContent(fixture);
+    const language = checkContentLanguage(input);
     if (language) {
       skipped++;
       console.log(
@@ -42,7 +42,7 @@ try {
       continue;
     }
     evaluated++;
-    const signals = await deriveAiSignals(input);
+    const signals = await deriveAiSignals("youtube_video", input);
     const outside = signals.filter(
       ({ key, score }) =>
         score < fixture.expected[key][0] || score > fixture.expected[key][1],

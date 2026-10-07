@@ -1,20 +1,17 @@
+import { normalizeIdentity } from "./identity";
+import { type ContentIdentity } from "./contracts/content";
 import { z } from "zod";
 import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { HttpError } from "./http";
-export const signalKeys = [
-  "repetitive",
-  "clickbait",
-  "low_information_density",
-  "ai_generated_filler",
-  "copied_or_repackaged",
-] as const;
+import { signalKeys, signalsFor } from "./contracts/signals";
+export { signalKeys } from "./contracts/signals";
 export const videoIdSchema = z.string().regex(/^[A-Za-z0-9_-]{11}$/);
 export const detailsSchema = z
   .object({
     signals: z
       .array(z.enum(signalKeys))
-      .max(5)
+      .max(signalKeys.length)
       .refine((v) => new Set(v).size === v.length),
     otherText: z.string().trim().max(500),
     sourceUrl: z.string().trim().max(2048).optional(),
@@ -22,7 +19,7 @@ export const detailsSchema = z
   .strict();
 export type Details = z.infer<typeof detailsSchema>;
 export type Identity = {
-  entityType: "youtube_video" | "youtube_channel";
+  entityType: "youtube_video" | "youtube_channel" | "linkedin_post";
   externalId: string;
   canonicalUrl: string;
 };
@@ -32,6 +29,17 @@ export function videoIdentity(id: string): Identity {
     entityType: "youtube_video",
     externalId: id,
     canonicalUrl: `https://www.youtube.com/watch?v=${id}`,
+  };
+}
+function contentIdentity(value: string | ContentIdentity): Identity {
+  if (typeof value === "string") return videoIdentity(value);
+  const i = normalizeIdentity(value);
+  if (!i.url)
+    throw new HttpError(400, "A canonical URL is required for contributions.");
+  return {
+    entityType: i.entityType,
+    canonicalUrl: i.url,
+    externalId: i.externalId ?? "",
   };
 }
 export async function resolveSource(value: string): Promise<Identity> {
@@ -70,26 +78,10 @@ export async function resolveSource(value: string): Promise<Identity> {
       ? parts[1]
       : null;
   if (parts.length === 1 && parts[0].startsWith("@")) {
-    if (!process.env.YOUTUBE_DATA_API_KEY)
-      throw new HttpError(
-        422,
-        "Please use the original video URL or a /channel/ URL for now.",
-      );
-    const query = new URLSearchParams({
-      part: "id",
-      forHandle: parts[0],
-      key: process.env.YOUTUBE_DATA_API_KEY,
-    });
-    const response = await fetch(
-      `https://www.googleapis.com/youtube/v3/channels?${query}`,
-      { signal: AbortSignal.timeout(5000) },
+    throw new HttpError(
+      422,
+      "Use a video URL or a /channel/ URL; handle lookup is unavailable.",
     );
-    if (!response.ok)
-      throw new HttpError(
-        502,
-        "Could not look up that creator. Try a video URL.",
-      );
-    channel = (await response.json()).items?.[0]?.id;
   }
   if (!channel || !/^UC[A-Za-z0-9_-]{22}$/.test(channel))
     throw new HttpError(400, "Enter a valid YouTube video or channel URL.");
@@ -117,19 +109,19 @@ export async function transaction<T>(
 }
 async function entity(c: PoolClient, i: Identity) {
   const { rows } = await c.query(
-    `INSERT INTO entities(entity_type,external_id,canonical_url) VALUES($1,$2,$3) ON CONFLICT(entity_type,external_id) DO UPDATE SET canonical_url=EXCLUDED.canonical_url RETURNING id`,
-    [i.entityType, i.externalId, i.canonicalUrl],
+    `INSERT INTO entities(entity_type,canonical_url) VALUES($1,$2) ON CONFLICT(entity_type,canonical_url) DO UPDATE SET canonical_url=EXCLUDED.canonical_url RETURNING id`,
+    [i.entityType, i.canonicalUrl],
   );
   return rows[0].id as string;
 }
 // Only videos can be rated. Source identity may be a video or channel.
-export async function rating(videoId: string) {
-  videoIdentity(videoId);
+export async function rating(videoId: string | ContentIdentity) {
+  contentIdentity(videoId);
   const { rows } = await pool.query(
     `WITH video_votes AS (
        SELECT v.user_id, v.entity_id, v.vote FROM content_votes v
        JOIN entities e ON e.id=v.entity_id
-       WHERE e.entity_type='youtube_video' AND e.external_id=$1
+       WHERE e.entity_type=$2 AND e.canonical_url=$1
      ), signal_counts AS (
        SELECT s.key, count(*)::int AS count
        FROM video_votes v
@@ -141,23 +133,39 @@ export async function rating(videoId: string) {
        count(*) FILTER(WHERE vote='not_slop')::int AS "notSlopVotes",
        COALESCE((SELECT json_agg(signal_counts ORDER BY count DESC,key) FROM signal_counts),'[]') AS "signalCounts"
      FROM video_votes`,
-    [videoId],
+    [
+      contentIdentity(videoId).canonicalUrl,
+      contentIdentity(videoId).entityType,
+    ],
   );
-  return { targetId: videoId, ...rows[0] };
+  return {
+    targetId:
+      typeof videoId === "string"
+        ? videoId
+        : contentIdentity(videoId).canonicalUrl,
+    ...rows[0],
+  };
 }
-export async function myVote(videoId: string, userId: string) {
+export async function myVote(
+  videoId: string | ContentIdentity,
+  userId: string,
+) {
   const { rows } = await pool.query(
-    `SELECT v.vote FROM content_votes v JOIN entities e ON e.id=v.entity_id WHERE e.entity_type='youtube_video' AND e.external_id=$1 AND v.user_id=$2`,
-    [videoId, userId],
+    `SELECT v.vote FROM content_votes v JOIN entities e ON e.id=v.entity_id WHERE e.entity_type=$3 AND e.canonical_url=$1 AND v.user_id=$2`,
+    [
+      contentIdentity(videoId).canonicalUrl,
+      userId,
+      contentIdentity(videoId).entityType,
+    ],
   );
   return { kind: "authenticated", vote: rows[0]?.vote ?? null };
 }
 export async function vote(
-  videoId: string,
+  videoId: string | ContentIdentity,
   userId: string,
   choice: "slop" | "not_slop",
 ) {
-  const identity = videoIdentity(videoId);
+  const identity = contentIdentity(videoId);
   await transaction(async (c) => {
     const id = await entity(c, identity);
     await c.query(
@@ -177,29 +185,46 @@ export async function vote(
   });
   return rating(videoId);
 }
-export async function details(videoId: string, userId: string) {
+export async function details(
+  videoId: string | ContentIdentity,
+  userId: string,
+) {
   const { rows } = await pool.query(
-    `SELECT COALESCE((SELECT json_agg(s.key ORDER BY s.key) FROM content_vote_signals vs JOIN slop_signals s ON s.id=vs.signal_id WHERE vs.user_id=$2 AND vs.entity_id=e.id),'[]') AS signals,COALESCE((SELECT other_text FROM content_vote_feedback f WHERE f.user_id=$2 AND f.entity_id=e.id),'') AS "otherText" FROM entities e WHERE e.entity_type='youtube_video' AND e.external_id=$1`,
-    [videoId, userId],
+    `SELECT COALESCE((SELECT json_agg(s.key ORDER BY s.key) FROM content_vote_signals vs JOIN slop_signals s ON s.id=vs.signal_id WHERE vs.user_id=$2 AND vs.entity_id=e.id),'[]') AS signals,COALESCE((SELECT other_text FROM content_vote_feedback f WHERE f.user_id=$2 AND f.entity_id=e.id),'') AS "otherText" FROM entities e WHERE e.entity_type=$3 AND e.canonical_url=$1`,
+    [
+      contentIdentity(videoId).canonicalUrl,
+      userId,
+      contentIdentity(videoId).entityType,
+    ],
   );
   return rows[0] ?? { signals: [], otherText: "" };
 }
 export async function saveDetails(
-  videoId: string,
+  videoId: string | ContentIdentity,
   userId: string,
   input: Details,
 ) {
-  const identity = videoIdentity(videoId);
+  const identity = contentIdentity(videoId);
   const data = detailsSchema.parse(input);
+  if (
+    !data.signals.every((key) =>
+      signalsFor(
+        identity.entityType as "youtube_video" | "linkedin_post",
+      ).includes(key),
+    )
+  )
+    throw new HttpError(400, "Unsupported reason for this platform.");
   if (data.sourceUrl && !data.signals.includes("copied_or_repackaged"))
     throw new HttpError(
       400,
       "Select copied or repackaged before adding a source.",
     );
+  if (identity.entityType === "linkedin_post" && data.sourceUrl)
+    throw new HttpError(422, "LinkedIn source reporting is not available.");
   const source = data.sourceUrl ? await resolveSource(data.sourceUrl) : null;
   if (
     source?.entityType === identity.entityType &&
-    source.externalId === identity.externalId
+    source.canonicalUrl === identity.canonicalUrl
   )
     throw new HttpError(400, "The source must be a different video.");
   await transaction(async (c) => {
@@ -210,7 +235,7 @@ export async function saveDetails(
       [userId, id],
     );
     if (rows[0]?.vote !== "slop")
-      throw new HttpError(409, "Mark this video Slop before adding reasons.");
+      throw new HttpError(409, "Mark this content Slop before adding reasons.");
     await c.query(
       "DELETE FROM content_vote_signals WHERE user_id=$1 AND entity_id=$2",
       [userId, id],

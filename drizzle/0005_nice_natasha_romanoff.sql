@@ -1,0 +1,2 @@
+ALTER TABLE "content_analyses" DROP CONSTRAINT "analysis_language";--> statement-breakpoint
+ALTER TABLE "content_analyses" ADD CONSTRAINT "analysis_language" CHECK ("content_analyses"."status" <> 'unsupported_language' OR ("content_analyses"."detected_language" IS NOT NULL AND "content_analyses"."detected_language" ~ '^[a-z]{3}$'));

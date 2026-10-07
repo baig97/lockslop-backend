@@ -11,7 +11,7 @@ export class HttpError extends Error {
     super(message);
   }
 }
-export async function body(request: Request) {
+export async function body(request: Request, maxBytes = 8192) {
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new HttpError(415, "Use application/json.");
   const reader = request.body?.getReader();
@@ -22,7 +22,7 @@ export async function body(request: Request) {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.length;
-    if (size > 8192) {
+    if (size > maxBytes) {
       await reader.cancel();
       throw new HttpError(413, "Request too large.");
     }
@@ -34,17 +34,19 @@ export async function body(request: Request) {
     throw new HttpError(400, "Invalid JSON.");
   }
 }
-export async function requireSession(request: Request) {
+export async function requireSession(
+  request: Request,
+  scope: "slop:read" | "slop:write" = ["GET", "HEAD"].includes(request.method)
+    ? "slop:read"
+    : "slop:write",
+) {
   let principal;
   try {
     principal = await auth.api.extensionPrincipal({ headers: request.headers });
   } catch {
     throw new HttpError(401, "Sign in to continue.");
   }
-  if (
-    !["GET", "HEAD"].includes(request.method) &&
-    !principal.scopes.includes("slop:write")
-  )
+  if (!principal.scopes.includes(scope))
     throw new HttpError(403, "This token does not allow contributions.");
   return principal;
 }
