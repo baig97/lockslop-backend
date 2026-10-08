@@ -30,7 +30,7 @@ export { GENERATOR_VERSION } from "./ai/config";
 export const AI_CACHE_TTL = "1 month";
 export const generationPool = new Pool({
   connectionString: process.env.DATABASE_URL_UNPOOLED,
-  max: 2,
+  max: 10,
   connectionTimeoutMillis: 3000,
 });
 generationPool.on("error", () =>

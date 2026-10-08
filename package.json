@@ -18,7 +18,7 @@
     "test:jev:live": "tsx scripts/test-jev-live.ts",
     "eval:jev": "tsx scripts/evaluate-jev.ts",
     "content:clear": "tsx scripts/clear-content.ts",
-    "test:unit": "tsx scripts/test-content.ts && tsx scripts/test-analysis-unit.ts && tsx scripts/test-jev.ts",
+    "test:unit": "tsx scripts/test-content.ts && tsx scripts/test-analysis-unit.ts && tsx scripts/test-jev.ts && tsx scripts/test-ai-batch.ts",
     "content:prune": "tsx scripts/prune-analyses.ts",
     "test:privacy": "tsx scripts/test-privacy-consent.ts",
     "test:oauth-registration": "tsx scripts/test-oauth-registration.ts",
