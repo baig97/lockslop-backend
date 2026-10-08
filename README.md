@@ -10,7 +10,7 @@ Run `npm install`, `npm run db:migrate`, `npm run db:seed`, `npm run auth:regist
 
 For production registration, supply the production `BETTER_AUTH_URL` and existing `OAUTH_EXTENSION_CLIENT_ID`, and configure `DATABASE_URL` for the production database. Changing the URL alone does not update an existing client’s resource links. Registration prints the client ID and target resource, and does not deploy the backend. The ownerless first-party client is provisioned through the adapter because Better Auth’s client-management endpoints require a signed-in owner.
 
-Auth and OAuth Provider tables live in `auth`; content tables live in `public`. IDs use UUID v4. The extension is a first-party public OAuth client with exact redirect URLs and required S256 PKCE. Dynamic registration and client administration are disabled. Provider-managed opaque access tokens and rotating refresh tokens replace custom handoffs; users must sign in again after migrating. Google browser sessions are separate from extension OAuth tokens.
+Auth and OAuth Provider tables live in `auth`; content tables live in `public`. IDs use UUID v4. The extension is a first-party public OAuth client with exact redirect URLs and required S256 PKCE. Dynamic registration and client administration are disabled. Provider-managed opaque access tokens and rotating refresh tokens replace custom handoffs; users must sign in again after migrating. Google browser sessions are separate from extension OAuth tokens. The extension’s browser-managed auth window redirects straight from the signed `/auth/sign-in` entry to Google, with Better Auth verifying the signed query and carrying its state cookies through the redirect.
 
 ## Two-stage content pipeline
 
