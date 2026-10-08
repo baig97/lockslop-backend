@@ -95,12 +95,19 @@ async function load(
 export function cachedResult(
   a: Analysis | null,
   now = Date.now(),
-  type: SignalEntityType = a?.input && Object.prototype.hasOwnProperty.call(a.input, "title")
+  type: SignalEntityType = a?.input &&
+  Object.prototype.hasOwnProperty.call(a.input, "title")
     ? "youtube_video"
     : "linkedin_post",
 ): AiResult {
   if (!a || a.expiresAt.getTime() <= now) return { status: "needs_input" };
   if (a.generatorVersion !== generatorVersion(type))
+    return { status: "needs_input" };
+  // Reassess cached rejections that the current language gate now accepts.
+  if (
+    a.status === "unsupported_language" &&
+    checkContentLanguage(a.input) === null
+  )
     return { status: "needs_input" };
   if (a.status === "unsupported_language")
     return aiResultSchema.parse({

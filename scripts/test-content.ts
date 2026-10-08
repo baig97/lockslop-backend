@@ -7,7 +7,11 @@ import {
   sortedJson,
 } from "../lib/contracts/content";
 import { normalizeIdentity } from "../lib/identity";
-import { checkContentLanguage } from "../lib/ai/language";
+import { checkContentLanguage, isEnglish } from "../lib/ai/language";
+import {
+  founderEnglishPost,
+  rejectedLanguageSamples,
+} from "./language-fixtures";
 import { fixtureContent, evaluationFixtures } from "./evaluation-fixtures";
 const sample = fixtureContent(evaluationFixtures[0]);
 const content = sanitizeContent("youtube_video", sample);
@@ -90,6 +94,35 @@ assert.throws(() =>
     url: "https://evil.test/watch?v=abcdefghijk",
   }),
 );
+for (const text of [
+  founderEnglishPost,
+  founderEnglishPost.replace(/\s+/g, " "),
+  founderEnglishPost.replace(/'/g, "’"),
+]) {
+  assert(isEnglish(text), "Conversational English must pass the language gate");
+  assert.equal(
+    checkContentLanguage(
+      sanitizeContent("linkedin_post", { schemaVersion: 2, text }),
+    ),
+    null,
+  );
+  assert.equal(
+    checkContentLanguage(
+      sanitizeContent("youtube_video", {
+        ...sample,
+        title: "My brain at 3 AM",
+        description: text,
+      }),
+    ),
+    null,
+  );
+}
+for (const text of rejectedLanguageSamples)
+  assert.equal(
+    isEnglish(text),
+    false,
+    "Do not force unrelated or undetermined language samples to English",
+  );
 assert.equal(checkContentLanguage(content), null);
 assert.equal(
   checkContentLanguage(

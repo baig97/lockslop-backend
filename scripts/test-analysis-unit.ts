@@ -10,6 +10,7 @@ const { sanitizeContent, hashContent } =
   await import("../lib/contracts/content");
 const { signalsFor } = await import("../lib/contracts/signals");
 const { generatorVersion } = await import("../lib/ai/config");
+import { founderEnglishPost } from "./language-fixtures";
 const { fixtureContent, evaluationFixtures } =
   await import("./evaluation-fixtures");
 class MemoryStore implements AnalysisStore {
@@ -185,6 +186,41 @@ try {
   assert.equal(oldPost.signals.length, 7);
   assert.deepEqual(oldPost.input, retained);
   assert.equal(oldPost.userId, firstUser);
+  const rejectedEnglish = sanitizeContent("linkedin_post", {
+    schemaVersion: 2,
+    text: founderEnglishPost,
+  });
+  const rejectedHash = hashContent("linkedin_post", rejectedEnglish);
+  const languageKey = "rejectedEnglish" + rejectedHash;
+  const legacyLanguage: Analysis = {
+    ...structuredClone(oldPost),
+    id: randomUUID(),
+    entityId: "rejectedEnglish",
+    contentHash: rejectedHash,
+    input: rejectedEnglish,
+    status: "unsupported_language",
+    detectedLanguage: "sco",
+    signals: [],
+    generatorVersion: generatorVersion("linkedin_post"),
+  };
+  store.rows.set(languageKey, legacyLanguage);
+  assert.equal(
+    cachedResult(legacyLanguage).status,
+    "needs_input",
+    "Old false language rejections must not stay cached",
+  );
+  const oldCalls = calls;
+  const repaired = await ensureAiSignals(
+    "rejectedEnglish",
+    "linkedin_post",
+    rejectedHash,
+    rejectedEnglish,
+    "new-user",
+    deps,
+  );
+  assert.equal(repaired.status, "ready");
+  assert.equal(calls, oldCalls + 1);
+  assert.equal(store.rows.get(languageKey)!.userId, legacyLanguage.userId);
   console.log(
     "PASS: cache-only lookup, first-input reuse, simultaneous hash isolation, same-hash deduplication, expiry, validation, atomic failure/retry and language gating with injected in-memory repository.",
   );
