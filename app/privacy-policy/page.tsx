@@ -79,7 +79,7 @@ const informationRows = [
       "For YouTube: title, description, publication time, duration, language hint, live status, tags, engagement counts, and up to ten comment texts. For LinkedIn: post text (which can include inline image alternative text), publication and language fields when available, and engagement counts. The current LinkedIn extractor marks comments unavailable and does not send LinkedIn comment text.",
     use: "Generate content-quality signals and cache the result for other users viewing the same content revision.",
     location: "Extracted in memory on the device, then transmitted through Vercel, stored in Neon, and processed by TypeSafe.ai/Jev on an authenticated cache miss.",
-    retention: "Lockslop sets the accepted analysis input and result to expire after one calendar month. Expired results are not served and are removed by the configured daily cleanup. TypeSafe applies its own service retention criteria.",
+    retention: "Lockslop sets the accepted analysis input and result to expire after one calendar month. Expired results are not served and are physically removed during the next configured monthly cleanup. TypeSafe applies its own service retention criteria.",
   },
   {
     data: "Community contributions",
@@ -123,7 +123,7 @@ const retentionRows = [
   ["Extension theme, public account display, and privacy acknowledgement", "Until sign-out where applicable, clearing extension data, uninstalling, or replacing the acknowledgement with a later policy version."],
   ["Account privacy choice", "The latest choice is retained while your account is active, until replaced by a new choice or removed with account deletion."],
   ["Backend web session", "Seven days from creation, unless revoked sooner."],
-  ["AI input, status, and generated signals", "Configured to expire one calendar month after first acceptance. Expired analyses are not served and the Vercel cleanup route is scheduled daily; deployment monitoring must confirm successful runs."],
+  ["AI input, status, and generated signals", "Configured to expire one calendar month after first acceptance. Expired analyses are not served and are physically removed during the next monthly Vercel cleanup; deployment monitoring must confirm successful runs."],
   ["Rate-limit state", "Approximately one minute."],
   ["Account and provider records", "While the account is active or until a verified deletion request, except where a longer period is required for law, disputes, or security."],
   ["Votes, reasons, feedback, and reports", "While needed for the community service, subject to updates, enforcement, and applicable correction or deletion rights."],
