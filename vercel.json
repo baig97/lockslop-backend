@@ -5,5 +5,8 @@
       "path": "/api/internal/prune-analyses",
       "schedule": "0 19 1 * *"
     }
+  ],
+  "regions": [
+    "sin1"
   ]
 }
