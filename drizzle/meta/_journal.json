@@ -43,6 +43,13 @@
       "when": 1791349905928,
       "tag": "0005_nice_natasha_romanoff",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791434702603,
+      "tag": "0006_tearful_baron_zemo",
+      "breakpoints": true
     }
   ]
 }

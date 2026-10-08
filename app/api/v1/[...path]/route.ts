@@ -1,3 +1,4 @@
+import { requirePrivacyConsent } from "@/lib/privacy";
 import { batchOverviews } from "@/lib/overview";
 import { identitySchema, envelopeSchema } from "@/lib/contracts/content";
 import { z } from "zod";
@@ -24,6 +25,7 @@ const handler = route(async (request) => {
       : request.headers.has("authorization")
         ? await requireSession(request, "slop:read")
         : null;
+    if (principal) await requirePrivacyConsent(principal.user.id);
     const data = envelopeSchema.parse(
       await body(request, derive ? 512 * 1024 : 32 * 1024),
     );
@@ -40,6 +42,7 @@ const handler = route(async (request) => {
       request,
       request.method === "GET" ? "slop:read" : "slop:write",
     );
+    await requirePrivacyConsent(principal.user.id);
     if (path === "content/my-vote/details" && request.method === "GET") {
       const params = new URL(request.url).searchParams;
       return Response.json(
@@ -81,6 +84,7 @@ const handler = route(async (request) => {
     throw new HttpError(404, "Not found.");
   const session = await requireSession(request),
     userId = session.user.id;
+  await requirePrivacyConsent(userId);
   if (request.method === "GET") {
     if (action !== "my-vote/details") throw new HttpError(404, "Not found.");
     if (action === "my-vote/details")

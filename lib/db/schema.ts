@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable,
+  boolean,
   uuid,
   text,
   timestamp,
@@ -190,3 +191,11 @@ export const aiContentSignals = pgTable(
     check("ai_score_range", sql`${t.score} >= 0 AND ${t.score} <= 1`),
   ],
 );
+
+// One current privacy choice per account; no consent-history subsystem.
+export const privacyConsent = authSchema.table("privacy_consent", {
+  userId: uuid("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  policyVersion: text("policy_version").notNull(),
+  accepted: boolean("accepted").notNull(),
+  updatedAt: updated(),
+});

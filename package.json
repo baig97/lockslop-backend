@@ -19,7 +19,8 @@
     "eval:jev": "tsx scripts/evaluate-jev.ts",
     "content:clear": "tsx scripts/clear-content.ts",
     "test:unit": "tsx scripts/test-content.ts && tsx scripts/test-analysis-unit.ts && tsx scripts/test-jev.ts",
-    "content:prune": "tsx scripts/prune-analyses.ts"
+    "content:prune": "tsx scripts/prune-analyses.ts",
+    "test:privacy": "tsx scripts/test-privacy-consent.ts"
   },
   "dependencies": {
     "@better-auth/core": "1.7.4",
@@ -31,12 +32,15 @@
     "franc": "6.2.0",
     "next": "16.3.5",
     "pg": "^8.23.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "zod": "^4.6.4"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
+    "@types/react-dom": "^19.3.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "prettier": "3.9.6",

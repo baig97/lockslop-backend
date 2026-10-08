@@ -88,8 +88,12 @@ try {
       [tokens[i], users[i]],
     );
   }
-  for (let i = 0; i < 2; i++)
+  for (let i = 0; i < 2; i++) {
     tokens[i] = (await issue(parentTokens[i])).tokens.access_token;
+    await req("/api/extension/privacy-consent", "POST", {
+      version: process.env.PRIVACY_POLICY_VERSION, accepted: true,
+    }, tokens[i]);
+  }
   const columns = await pool.query(
     `SELECT table_name,column_name,data_type FROM information_schema.columns WHERE table_schema IN ('auth','public') AND (column_name='id' OR column_name IN ('user_id','reporter_user_id','entity_id','source_entity_id','signal_id','session_id'))`,
   );
