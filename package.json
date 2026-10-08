@@ -20,7 +20,8 @@
     "content:clear": "tsx scripts/clear-content.ts",
     "test:unit": "tsx scripts/test-content.ts && tsx scripts/test-analysis-unit.ts && tsx scripts/test-jev.ts",
     "content:prune": "tsx scripts/prune-analyses.ts",
-    "test:privacy": "tsx scripts/test-privacy-consent.ts"
+    "test:privacy": "tsx scripts/test-privacy-consent.ts",
+    "test:oauth-registration": "tsx scripts/test-oauth-registration.ts"
   },
   "dependencies": {
     "@better-auth/core": "1.7.4",

@@ -24,7 +24,7 @@ export const oauthOptions = {
 };
 export const auth = betterAuth({
   baseURL: baseUrl,
-  database: drizzleAdapter(db, { provider: "pg", schemaName: "auth", schema }),
+  database: drizzleAdapter(db, { provider: "pg", schemaName: "auth", schema, transaction: true }),
   advanced: { database: { generateId: "uuid" } },
   trustedOrigins: allowedOrigins,
   socialProviders: {

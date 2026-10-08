@@ -94,8 +94,8 @@ const informationRows = [
     data: "Local extension information",
     trigger: "When you use the extension or change its appearance",
     details:
-      "Theme preference, public account display state, browser-session credentials, and a local privacy-policy acknowledgement. The backend also stores your account’s latest policy version, acceptance or refusal, and choice time.",
-    use: "Remember appearance, display sign-in state, authenticate requests, and avoid repeating the first-use disclosure for the same policy version.",
+      "Theme preference, public account display state, browser-session credentials, and account privacy status. The backend stores your account’s latest policy version, acceptance or refusal, and choice time after sign-in.",
+    use: "Remember appearance, display sign-in state, authenticate requests, and check whether your account has accepted the current policy version.",
     location: "Chrome local or session storage on your device; account-level privacy choices are stored in the Lockslop backend database. Credentials are transmitted only when authenticating with the Lockslop backend.",
     retention: "Until sign-out, browser-session termination, clearing extension data, or uninstalling, depending on the item.",
   },
@@ -120,7 +120,7 @@ const informationRows = [
 
 const retentionRows = [
   ["Extension session credentials", "Until sign-out or browser-session termination."],
-  ["Extension theme, public account display, and privacy acknowledgement", "Until sign-out where applicable, clearing extension data, uninstalling, or replacing the acknowledgement with a later policy version."],
+  ["Extension theme, public account display, and cached privacy status", "Until sign-out where applicable, browser-session termination, clearing extension data, or uninstalling."],
   ["Account privacy choice", "The latest choice is retained while your account is active, until replaced by a new choice or removed with account deletion."],
   ["Backend web session", "Seven days from creation, unless revoked sooner."],
   ["AI input, status, and generated signals", "Configured to expire one calendar month after first acceptance. Expired analyses are not served and are physically removed during the next monthly Vercel cleanup; deployment monitoring must confirm successful runs."],
@@ -214,10 +214,10 @@ export default function PrivacyPolicyPage() {
               <h2>How Lockslop works</h2>
             </div>
             <p>
-              Lockslop first shows a short disclosure with a link to this policy. Until you enable Lockslop, its supported-page discovery, extraction, rating lookups, and AI analysis stay off. Authentication and privacy-status requests can still run to check your account and the current policy version. Signed-in users must agree to the current version before continuing; declining signs them out. After you enable it, Lockslop adds a small rating interface to supported YouTube watch pages and LinkedIn feed posts. To identify the content revision, the extension locally extracts selected text and metadata and computes a content hash. Its page-side parsers may transiently scan a cloned copy of a platform response or the relevant page DOM in memory, but they keep only the bounded fields listed below. The initial cache lookup sends the content type, canonical URL or supported external identifier, and the hash—not the full text or comments.
+              Lockslop adds a small rating interface to supported YouTube watch pages and LinkedIn feed posts. Signed-out users can retrieve existing ratings without an agreement prompt. After sign-in, Lockslop checks the account’s saved policy version and shows a centered agreement dialog when acceptance is missing or outdated. Signed-in page processing, rating requests, AI analysis, and contributions stay paused until the backend confirms acceptance of the current policy. Declining signs the user out. Authentication and privacy-status checks can run before agreement. To identify the content revision, the extension locally extracts selected text and metadata and computes a content hash. Its page-side parsers may transiently scan a cloned copy of a platform response or the relevant page DOM in memory, but they keep only the bounded fields listed below. The initial cache lookup sends the content type, canonical URL or supported external identifier, and the hash—not the full text or comments.
             </p>
             <p>
-              If the user is signed in and that cache lookup finds no current assessment, the extension automatically sends the bounded supported-page content described below to generate one. There is no separate “analyze” click for the first attempt. A retry after a provider failure is user-initiated. Community votes, explanations, and source reports are sent only when a signed-in user deliberately submits them.
+              If the user is signed in, has accepted the current policy, and that cache lookup finds no current assessment, the extension automatically sends the bounded supported-page content described below to generate one. There is no separate “analyze” click for the first attempt. A retry after a provider failure is user-initiated. Community votes, explanations, and source reports are sent only when a signed-in user deliberately submits them.
             </p>
             <div className={styles.callout}>
               <strong>Bounded access.</strong>
