@@ -1,57 +1,32 @@
-import { francAll } from "franc";
+import { franc } from "franc";
 import type { DerivedContent } from "../contracts/content";
 
-// These are ranking distances, not calibrated probabilities. Only resolve the
-// close English/Scots ambiguity when the text also contains varied English words.
-const ENGLISH_SCOTS_MAX_DISTANCE = 0.025;
-const englishMarkers = new Set([
-  "the",
-  "this",
-  "that",
-  "what",
-  "if",
-  "and",
-  "now",
-  "until",
-  "my",
-  "your",
-  "you",
-  "can",
-  "cannot",
-  "finally",
-  "some",
-  "people",
-  "thing",
-  "things",
-  "world",
-  "after",
-]);
-function detectLanguage(text: string): string {
-  const ranked = francAll(text.trim());
-  const [first, second] = ranked;
-  if (!first) return "und";
-  if (
-    first[0] === "sco" &&
-    second?.[0] === "eng" &&
-    first[1] - second[1] <= ENGLISH_SCOTS_MAX_DISTANCE
-  ) {
-    const words = text.toLowerCase().match(/\p{L}+/gu) ?? [];
-    const markers = words.filter((word) => englishMarkers.has(word));
-    if (new Set(markers).size >= 5 && markers.length / words.length >= 0.12)
-      return "eng";
-  }
-  return first[0];
+const sentences = new Intl.Segmenter("en", { granularity: "sentence" });
+// Short fragments are noisy language samples. Keep the fallback to meaningful
+// body segments; the full-text check still uses franc's existing default.
+const MIN_SEGMENT_LETTERS = 30;
+function hasEnglishSegment(body: string): boolean {
+  const segments = new Set([
+    body.trim(),
+    ...body.split(/\r?\n/).map((segment) => segment.trim()),
+    ...body.split(/\r?\n\s*\r?\n/).map((segment) => segment.trim()),
+    ...Array.from(sentences.segment(body), (entry) => entry.segment.trim()),
+  ]);
+  return [...segments].some(
+    (segment) =>
+      (segment.match(/\p{L}/gu)?.length ?? 0) >= MIN_SEGMENT_LETTERS &&
+      franc(segment) === "eng",
+  );
 }
 export function isEnglish(text: string) {
-  return detectLanguage(text) === "eng";
+  return franc(text.trim()) === "eng" || hasEnglishSegment(text);
 }
 export function checkContentLanguage(input: DerivedContent) {
-  const text =
-    "description" in input
-      ? `${input.title}\n${input.description}`
-      : input.text;
-  const detectedLanguage = detectLanguage(text);
-  return detectedLanguage === "eng"
+  const body = "description" in input ? input.description : input.text;
+  const fullText = "description" in input ? `${input.title}\n${body}` : body;
+  const detectedLanguage = franc(fullText.trim());
+  // Title, tags, comments and hints do not participate in the body fallback.
+  return detectedLanguage === "eng" || hasEnglishSegment(body)
     ? null
     : { status: "unsupported_language" as const, detectedLanguage };
 }

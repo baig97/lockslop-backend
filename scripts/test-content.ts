@@ -123,6 +123,64 @@ for (const text of rejectedLanguageSamples)
     false,
     "Do not force unrelated or undetermined language samples to English",
   );
+const nonEnglishBody = rejectedLanguageSamples[1].repeat(6);
+const englishSegment =
+  "I finally finished building the product and now I can get some sleep before the next idea wakes me up again.";
+for (const text of [
+  `${nonEnglishBody}\n\n${englishSegment}`,
+  `${nonEnglishBody} ${englishSegment}`,
+  `${englishSegment}\n${nonEnglishBody}`,
+]) {
+  const mixedPost = sanitizeContent("linkedin_post", {
+    schemaVersion: 2,
+    text,
+  });
+  const before = structuredClone(mixedPost);
+  assert.equal(
+    checkContentLanguage(mixedPost),
+    null,
+    "English body segments qualify mixed-language content",
+  );
+  assert.deepEqual(
+    mixedPost,
+    before,
+    "Language qualification must preserve the original payload",
+  );
+  assert.equal(
+    checkContentLanguage(
+      sanitizeContent("youtube_video", {
+        ...sample,
+        title: "Título no inglés",
+        description: text,
+      }),
+    ),
+    null,
+  );
+}
+assert.equal(
+  checkContentLanguage(
+    sanitizeContent("youtube_video", {
+      ...sample,
+      title: englishSegment,
+      description: nonEnglishBody,
+      comments: { status: "available", items: [{ text: englishSegment }] },
+      tags: [englishSegment],
+      languageHint: "en",
+    }),
+  )?.status,
+  "unsupported_language",
+  "English comments, tags or hints cannot rescue a non-English description",
+);
+assert.equal(
+  checkContentLanguage(
+    sanitizeContent("linkedin_post", {
+      schemaVersion: 2,
+      text: `${nonEnglishBody}\n\nOK AI SEO CEO 3 AM 😅`,
+    }),
+  )?.status,
+  "unsupported_language",
+  "Tiny fragments are not sufficient English evidence",
+);
 assert.equal(checkContentLanguage(content), null);
 assert.equal(
   checkContentLanguage(
